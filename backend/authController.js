@@ -1,7 +1,17 @@
 const User = require("./models/User")
 const Role = require("./models/Role")
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const {validationResult } = require("express-validator");
+
+const generateAccessToken = (id, roles) => {
+    const payload = {
+        id,
+        roles
+    }
+
+    return jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '24h'})
+}
 
 class authRouter {
     async registration(req, res) {
@@ -31,6 +41,19 @@ class authRouter {
 
     async login(req, res) {
         try {
+            const {username, password} = req.body;
+            const user = await User.findOne({username})
+            if (!user) {
+                return res.status(400).json({message: `Пользователь ${username} не найден`})
+            }
+
+            const validPassword = bcrypt.compareSync(password, user.password);
+            if (!validPassword) {
+                return res.status(400).json({message: 'Введен неверный пароль'})
+            }
+
+            const token = generateAccessToken(user._id, user.roles)
+            return res.json({token})
 
         } catch (e) {
             console.log(e)
@@ -40,10 +63,8 @@ class authRouter {
 
     async getUsers(req, res) {
         try {
-            const userRole = new Role()
-            const adminRole = new Role({value: "ADMIN"})
-            await userRole.save()
-            await adminRole.save()
+            const users = await User.find()
+            return res.json(users)
 
             res.json("server is worked")
         } catch (e) {
